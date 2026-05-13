@@ -426,7 +426,7 @@
               this.showNotification('Успешная авторизация!');
               
               if (this.currentUser.role === 'admin') {
-                this.loadUsers();
+                setTimeout(() => this.loadUsers(), 100);
               }
             } else {
               this.showNotification(data.error || 'Ошибка авторизации');
