@@ -157,7 +157,7 @@ app.post('/api/users/:userId/switch', (req, res) => {
   }
   
   const token = 'user-token-' + userId + '-' + Date.now();
-  currentUser = { role: 'user', userId, username: users[userId].name };
+  currentUser = { role: 'user', userId: userId, username: users[userId].name, tempAdmin: { role: 'admin', username: 'admin' } };
   
   res.json({ success: true, user: users[userId], token: token });
 });

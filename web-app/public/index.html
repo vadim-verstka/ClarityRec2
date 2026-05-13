@@ -609,6 +609,10 @@
             
             if (response.ok) {
               this.currentUser = data.user;
+              // Убеждаемся, что userId установлен корректно
+              if (!this.currentUser.userId) {
+                this.currentUser.userId = userId;
+              }
               // Сохраняем токен в localStorage
               if (data.token) {
                 localStorage.setItem('authToken', data.token);
@@ -674,6 +678,10 @@
             
             if (response.ok) {
               this.currentUser = data.user;
+              // Убеждаемся, что userId установлен корректно
+              if (!this.currentUser.userId) {
+                this.currentUser.userId = userId;
+              }
               // Сохраняем токен
               if (data.token) {
                 localStorage.setItem('authToken', data.token);
