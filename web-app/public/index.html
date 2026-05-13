@@ -1,66 +1,597 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recommendation System</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClarityRec - Система рекомендаций</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .header {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .header h1 {
+      color: #667eea;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+    
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #5568d3;
+    }
+    
+    .btn-success {
+      background: #48bb78;
+      color: white;
+    }
+    
+    .btn-success:hover {
+      background: #38a169;
+    }
+    
+    .btn-danger {
+      background: #f56565;
+      color: white;
+    }
+    
+    .btn-danger:hover {
+      background: #e53e3e;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: transform 0.3s;
+    }
+    
+    .card:hover {
+      transform: translateY(-5px);
+    }
+    
+    .card img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+    }
+    
+    .card-body {
+      padding: 15px;
+    }
+    
+    .card-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #2d3748;
+      margin-bottom: 10px;
+    }
+    
+    .card-description {
+      color: #718096;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    .card-category {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+    
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      color: #2d3748;
+      font-weight: 500;
+    }
+    
+    .form-group input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    .login-form, .user-form {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      max-width: 400px;
+      margin: 50px auto;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .user-list {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .user-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .user-item:last-child {
+      border-bottom: none;
+    }
+    
+    .badge {
+      background: #667eea;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+    }
+    
+    .explanation-box {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .explanation-item {
+      padding: 15px;
+      background: #f7fafc;
+      border-radius: 5px;
+      margin-bottom: 10px;
+      border-left: 4px solid #667eea;
+    }
+    
+    .explanation-weight {
+      font-weight: bold;
+      color: #667eea;
+    }
+    
+    .placeholder {
+      text-align: center;
+      padding: 40px;
+      color: #718096;
+    }
+    
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #48bb78;
+      color: white;
+      padding: 15px 25px;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      z-index: 1000;
+    }
+    
+    .likes-counter {
+      background: #edf2f7;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 14px;
+      color: #4a5568;
+    }
+  </style>
 </head>
 <body>
-    <div id="app">
-        <!-- Login Page -->
-        <div id="login-page" class="page">
-            <h1>Admin Login</h1>
-            <form id="login-form">
-                <input type="text" id="username" placeholder="Username" required>
-                <input type="password" id="password" placeholder="Password" required>
-                <button type="submit">Login</button>
-            </form>
-            <p id="login-error" class="error"></p>
-        </div>
-
-        <!-- Admin Dashboard -->
-        <div id="admin-dashboard" class="page hidden">
-            <h1>Admin Dashboard</h1>
-            <button id="logout-btn" class="logout-btn">Logout</button>
-            
-            <div class="user-list-section">
-                <h2>Users</h2>
-                <button id="create-user-btn">Create New User</button>
-                <div id="users-list"></div>
-            </div>
-        </div>
-
-        <!-- Create User Modal -->
-        <div id="create-user-modal" class="modal hidden">
-            <div class="modal-content">
-                <h2>Create New User</h2>
-                <input type="text" id="new-username" placeholder="Enter username">
-                <button id="confirm-create-user">Create</button>
-                <button id="cancel-create-user">Cancel</button>
-            </div>
-        </div>
-
-        <!-- User Feed -->
-        <div id="user-feed" class="page hidden">
-            <h1>User Feed - <span id="current-username"></span></h1>
-            <a href="#" id="profile-link" class="profile-link">Go to Profile</a>
-            <p id="feed-status"></p>
-            <div id="cards-container" class="cards-container"></div>
-            <button id="back-to-admin" class="back-btn hidden">Back to Admin</button>
-        </div>
-
-        <!-- User Profile -->
-        <div id="user-profile" class="page hidden">
-            <h1>Personal Cabinet - <span id="profile-username"></span></h1>
-            <button id="back-to-feed" class="back-btn">Back to Feed</button>
-            <div id="explanation-container">
-                <h2>Recommendation Explanation</h2>
-                <div id="explanation-content"></div>
-            </div>
-        </div>
+  <div id="app">
+    <!-- Уведомление -->
+    <div v-if="notification" class="notification">
+      {{ notification }}
     </div>
+    
+    <!-- Страница авторизации -->
+    <div v-if="currentPage === 'login'" class="container">
+      <div class="login-form">
+        <h2 style="text-align: center; margin-bottom: 20px; color: #2d3748;">Авторизация</h2>
+        <div class="form-group">
+          <label>Логин</label>
+          <input type="text" v-model="loginForm.login" placeholder="Введите логин">
+        </div>
+        <div class="form-group">
+          <label>Пароль</label>
+          <input type="password" v-model="loginForm.password" placeholder="Введите пароль">
+        </div>
+        <button class="btn btn-primary" style="width: 100%;" @click="handleLogin">Войти</button>
+      </div>
+    </div>
+    
+    <!-- Панель администратора -->
+    <div v-else-if="currentUser && currentUser.role === 'admin'" class="container">
+      <div class="header">
+        <h1>ClarityRec - Админ панель</h1>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <span>Администратор: {{ currentUser.username }}</span>
+          <button class="btn btn-danger" @click="handleLogout">Выход</button>
+        </div>
+      </div>
+      
+      <div class="user-list">
+        <h3 style="margin-bottom: 15px;">Пользователи</h3>
+        <div v-for="user in users" :key="user.id" class="user-item">
+          <div>
+            <strong>{{ user.name }}</strong>
+            <span class="badge" style="margin-left: 10px;">{{ user.likesCount }} лайков</span>
+          </div>
+          <button class="btn btn-primary" @click="switchToUser(user.id)">Перейти к пользователю</button>
+        </div>
+        <div v-if="users.length === 0" style="text-align: center; color: #718096; padding: 20px;">
+          Пользователей пока нет
+        </div>
+      </div>
+      
+      <div class="user-form">
+        <h3 style="margin-bottom: 15px;">Создать пользователя</h3>
+        <div class="form-group">
+          <label>Имя пользователя</label>
+          <input type="text" v-model="newUserName" placeholder="Введите имя">
+        </div>
+        <button class="btn btn-success" style="width: 100%;" @click="createUser">Создать и перейти</button>
+      </div>
+    </div>
+    
+    <!-- Лента пользователя -->
+    <div v-else-if="currentUser && currentUser.role === 'user'" class="container">
+      <div class="header">
+        <h1>ClarityRec - Лента</h1>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <span class="likes-counter">Лайков: {{ likesCount }}</span>
+          <button class="btn btn-primary" @click="goToProfile">Личный кабинет</button>
+          <button class="btn btn-primary" v-if="isAdmin" @click="backToAdmin">Админ панель</button>
+          <button class="btn btn-danger" @click="handleLogout">Выход</button>
+        </div>
+      </div>
+      
+      <div v-if="isRecommended" style="background: #c6f6d5; padding: 15px; border-radius: 10px; margin-bottom: 20px; color: #22543d;">
+        🎯 Вам показаны рекомендованные карточки на основе ваших предпочтений!
+      </div>
+      
+      <div class="cards-grid">
+        <div v-for="card in cards" :key="card.id" class="card">
+          <img :src="card.image" :alt="card.title">
+          <div class="card-body">
+            <span class="card-category">{{ card.category }}</span>
+            <div class="card-title">{{ card.title }}</div>
+            <div class="card-description">{{ card.description }}</div>
+            <button 
+              class="btn btn-success" 
+              style="width: 100%;"
+              @click="handleLike(card)"
+              :disabled="likedCards.includes(card.id)"
+            >
+              {{ likedCards.includes(card.id) ? '✓ Лайкнуто' : '👍 Лайк' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Личный кабинет с объяснениями -->
+    <div v-else-if="currentPage === 'profile'" class="container">
+      <div class="header">
+        <h1>Личный кабинет</h1>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button class="btn btn-primary" @click="currentPage = 'feed'">Назад к ленте</button>
+          <button class="btn btn-danger" @click="handleLogout">Выход</button>
+        </div>
+      </div>
+      
+      <div class="explanation-box">
+        <h3 style="margin-bottom: 15px;">Объяснение рекомендаций</h3>
+        
+        <div v-if="!hasExplanation" class="placeholder">
+          <p>📭 Нет данных для формирования объяснений.</p>
+          <p>Необходимо минимум 5 лайков для формирования рекомендаций.</p>
+          <p>Текущее количество лайков: <strong>{{ likesCount }}</strong></p>
+        </div>
+        
+        <div v-else>
+          <p style="margin-bottom: 20px; font-size: 16px;">{{ explanation.summary }}</p>
+          
+          <div v-for="(item, index) in explanation.items" :key="index" class="explanation-item">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <strong>Категория: {{ item.category }}</strong>
+              <span class="explanation-weight">Вес: {{ item.weight }}</span>
+            </div>
+            <div style="color: #4a5568;">{{ item.explanation }}</div>
+            <div style="margin-top: 5px; font-size: 12px; color: #718096;">
+              Триггер: <strong>{{ item.trigger }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    <script src="app.js"></script>
+  <script>
+    const { createApp } = Vue;
+    
+    createApp({
+      data() {
+        return {
+          currentPage: 'login',
+          currentUser: null,
+          loginForm: { login: '', password: '' },
+          newUserName: '',
+          users: [],
+          cards: [],
+          likedCards: [],
+          likesCount: 0,
+          isRecommended: false,
+          hasExplanation: false,
+          explanation: null,
+          notification: null,
+          isAdmin: false
+        };
+      },
+      
+      mounted() {
+        this.checkAuth();
+      },
+      
+      methods: {
+        showNotification(message) {
+          this.notification = message;
+          setTimeout(() => {
+            this.notification = null;
+          }, 3000);
+        },
+        
+        async checkAuth() {
+          try {
+            const response = await fetch('/api/current-user');
+            if (response.ok) {
+              const data = await response.json();
+              this.currentUser = data.user;
+              if (this.currentUser.role === 'admin') {
+                this.loadUsers();
+              } else {
+                this.loadFeed();
+              }
+            }
+          } catch (e) {
+            console.log('Not authenticated');
+          }
+        },
+        
+        async handleLogin() {
+          try {
+            const response = await fetch('/api/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.loginForm)
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+              this.currentUser = data.user;
+              this.showNotification('Успешная авторизация!');
+              
+              if (this.currentUser.role === 'admin') {
+                this.loadUsers();
+              }
+            } else {
+              this.showNotification(data.error || 'Ошибка авторизации');
+            }
+          } catch (e) {
+            this.showNotification('Ошибка соединения с сервером');
+          }
+        },
+        
+        async handleLogout() {
+          try {
+            await fetch('/api/logout', { method: 'POST' });
+          } catch (e) {}
+          
+          this.currentUser = null;
+          this.currentPage = 'login';
+          this.users = [];
+          this.cards = [];
+          this.likedCards = [];
+          this.likesCount = 0;
+          this.isAdmin = false;
+          this.loginForm = { login: '', password: '' };
+        },
+        
+        async loadUsers() {
+          try {
+            const response = await fetch('/api/users');
+            const data = await response.json();
+            if (response.ok) {
+              this.users = data.users;
+            }
+          } catch (e) {
+            console.error('Ошибка загрузки пользователей:', e);
+          }
+        },
+        
+        async createUser() {
+          if (!this.newUserName.trim()) {
+            this.showNotification('Введите имя пользователя');
+            return;
+          }
+          
+          try {
+            const response = await fetch('/api/users', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: this.newUserName })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+              this.currentUser = { role: 'user', userId: data.user.id, username: data.user.name };
+              this.isAdmin = true;
+              this.newUserName = '';
+              this.loadFeed();
+              this.showNotification('Пользователь создан!');
+            } else {
+              this.showNotification(data.error || 'Ошибка создания пользователя');
+            }
+          } catch (e) {
+            this.showNotification('Ошибка соединения с сервером');
+          }
+        },
+        
+        async switchToUser(userId) {
+          try {
+            const response = await fetch(`/api/users/${userId}/switch`, {
+              method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+              this.currentUser = { role: 'user', userId: data.user.id, username: data.user.name };
+              this.isAdmin = true;
+              this.loadFeed();
+              this.showNotification(`Переключено на пользователя: ${data.user.name}`);
+            } else {
+              this.showNotification(data.error || 'Ошибка переключения');
+            }
+          } catch (e) {
+            this.showNotification('Ошибка соединения с сервером');
+          }
+        },
+        
+        backToAdmin() {
+          this.currentUser = { role: 'admin', username: 'admin' };
+          this.isAdmin = false;
+          this.loadUsers();
+        },
+        
+        async loadFeed() {
+          try {
+            const response = await fetch('/api/cards');
+            const data = await response.json();
+            
+            if (response.ok) {
+              this.cards = data.cards;
+              this.isRecommended = data.isRecommended;
+              this.likesCount = data.likesCount;
+              this.currentPage = 'feed';
+              
+              // Загружаем лайкнутые карточки (упрощенно - все карточки с лайками)
+              // В реальном приложении нужно отдельное API для этого
+            } else {
+              this.showNotification(data.error || 'Ошибка загрузки ленты');
+            }
+          } catch (e) {
+            this.showNotification('Ошибка соединения с сервером');
+          }
+        },
+        
+        async handleLike(card) {
+          if (this.likedCards.includes(card.id)) {
+            return;
+          }
+          
+          try {
+            const response = await fetch(`/api/cards/${card.id}/like`, {
+              method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+              this.likedCards.push(card.id);
+              this.likesCount = data.likesCount;
+              
+              if (data.hasRecommendations) {
+                this.showNotification('🎉 Рекомендации сформированы!');
+                await this.loadFeed();
+              } else {
+                this.showNotification(`Лайк поставлен! (${this.likesCount}/5)`);
+              }
+            } else {
+              this.showNotification(data.error || 'Ошибка лайка');
+            }
+          } catch (e) {
+            this.showNotification('Ошибка соединения с сервером');
+          }
+        },
+        
+        goToProfile() {
+          this.currentPage = 'profile';
+          this.loadExplanation();
+        },
+        
+        async loadExplanation() {
+          try {
+            const response = await fetch('/api/explanation');
+            const data = await response.json();
+            
+            if (response.ok) {
+              this.hasExplanation = data.hasExplanation;
+              if (data.hasExplanation) {
+                this.explanation = data.explanation;
+              }
+            }
+          } catch (e) {
+            console.error('Ошибка загрузки объяснений:', e);
+          }
+        }
+      }
+    }).mount('#app');
+  </script>
 </body>
 </html>

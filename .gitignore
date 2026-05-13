@@ -1,35 +1,45 @@
 ```
 # Dependencies
 node_modules/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
+package-lock.json
 
 # Environment
 .env
 .env.local
-*.env.*
+.env.*
 
-# Editors
-.vscode/
-.idea/
-
-# Python
+# Cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
 
 # Build outputs
 dist/
 build/
-*.o
-*.obj
-*.out
+target/
+coverage/
+htmlcov/
+*.egg-info/
 
-# Compression files
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Compression
 *.zip
 *.gz
 *.tar
@@ -52,21 +62,4 @@ build/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# Testing
-.mypy_cache/
-.pytest_cache/
-
-# Java/Gradle
-target/
-.gradle/
-
-# Virtual environments
-.venv/
-venv/
 ```
