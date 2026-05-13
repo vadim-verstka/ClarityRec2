@@ -1,44 +1,36 @@
 ```
+# Dependencies
+node_modules/
+
 # Build artifacts
 dist/
 build/
-*.js.map
-*.css.map
-
-# Dependencies
-node_modules/
+target/
 
 # Environment variables
 .env
 .env.local
-*.env.*
+.env.*
 
-# Logs
-*.log
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# IDE specific
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
-*.tmp
 
-# OS generated
-.DS_Store
-Thumbs.db
+# Logs
+*.log
 
-# Python specific
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-*.so
+venv/
+.venv/
+.env
+.env.*
 
 # Compressed files
 *.zip
