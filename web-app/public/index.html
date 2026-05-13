@@ -762,6 +762,11 @@
         },
         
         async handleLike(card) {
+          if (!this.currentUser || !this.currentUser.userId) {
+            this.showNotification('Ошибка: пользователь не авторизован');
+            return;
+          }
+
           const isLiked = this.likedCards.includes(card.id);
           
           try {
@@ -809,7 +814,7 @@
                     entity: card.category,
                     weight: 1
                   })
-                }).catch(e => console.log('Событие like:', e.message));
+                }).then(() => { console.log('Событие like успешно отправлено'); }).catch(e => console.error('Ошибка отправки события like:', e));
                 
                 if (data.hasRecommendations) {
                   this.showNotification('🎉 Рекомендации сформированы!');
