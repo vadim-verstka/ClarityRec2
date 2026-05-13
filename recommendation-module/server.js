@@ -1,155 +1,158 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 
 const app = express();
 const PORT = 3001;
 
-// Разрешаем CORS для всех источников
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-app.use(bodyParser.json());
+app.use(cors());
+app.use(express.json());
 
 // Хранилище данных пользователей
-// Структура: { userId: { recommendations: { entity: { totalWeight, events: [] } } } }
-const userDataStore = {};
+// Структура: { userId: { likes: [], recommendations: { entity: { totalWeight, events: [] } } } }
+const userData = {};
 
-// API для получения данных пользователя (для проверки прав)
+// Получить данные пользователя
 app.get('/api/user-data/:userId', (req, res) => {
-  const { userId } = req.params;
-  if (!userDataStore[userId]) {
-    userDataStore[userId] = { recommendations: {} };
-  }
-  res.json({ success: true, userId });
-});
-
-// API для отправки событий
-// Ожидается: { userId, trigger, entity, weight }
-app.post('/api/events', (req, res) => {
-  const { userId, trigger, entity, weight } = req.body;
-
-  console.log('Получено событие:', { userId, trigger, entity, weight });
-
-  if (!userId || !trigger || !entity || weight === undefined) {
-    return res.status(400).json({ error: 'Missing required fields: userId, trigger, entity, weight' });
-  }
-
-  if (!userDataStore[userId]) {
-    userDataStore[userId] = { recommendations: {} };
-  }
-
-  // Инициализируем сущность если нет
-  if (!userDataStore[userId].recommendations[entity]) {
-    userDataStore[userId].recommendations[entity] = {
-      totalWeight: 0,
-      events: []
-    };
-  }
-
-  // Добавляем событие в историю
-  userDataStore[userId].recommendations[entity].events.push({
-    trigger,
-    weight,
-    timestamp: new Date().toISOString()
-  });
-
-  // Обновляем суммарный вес
-  userDataStore[userId].recommendations[entity].totalWeight += weight;
-
-  console.log('Обновленный вес для', entity, ':', userDataStore[userId].recommendations[entity].totalWeight);
-
-  // Если вес стал <= 0, удаляем сущность из рекомендаций
-  if (userDataStore[userId].recommendations[entity].totalWeight <= 0) {
-    delete userDataStore[userId].recommendations[entity];
-  }
-
-  // Формируем отсортированный список рекомендаций
-  const recommendations = Object.entries(userDataStore[userId].recommendations)
-    .map(([entityName, data]) => ({
-      entity: entityName,
-      totalWeight: data.totalWeight,
-      events: data.events
-    }))
-    .sort((a, b) => b.totalWeight - a.totalWeight);
-
-  // Считаем количество лайков для порога активации
-  let likeCount = 0;
-  Object.values(userDataStore[userId].recommendations).forEach(data => {
-    data.events.forEach(event => {
-      if (event.trigger === 'like') likeCount++;
-      if (event.trigger === 'unlike') likeCount--;
+    const { userId } = req.params;
+    
+    if (!userData[userId]) {
+        userData[userId] = { likes: [], recommendations: {} };
+    }
+    
+    // Считаем активные лайки
+    const userRecs = userData[userId].recommendations || {};
+    let activeLikes = 0;
+    
+    Object.values(userRecs).forEach(rec => {
+        rec.events.forEach(ev => {
+            if (ev.trigger === 'like') {
+                activeLikes += ev.weight; // +1 или -1
+            }
+        });
     });
-  });
-
-  console.log('Активных лайков:', likeCount);
-
-  res.json({
-    success: true,
-    likeCount,
-    recommendations
-  });
+    
+    res.json({ 
+        likes: userData[userId].likes,
+        likeCount: activeLikes,
+        recommendations: userData[userId].recommendations
+    });
 });
 
-// API для получения рекомендаций
+// Получить рекомендации для пользователя
 app.get('/api/recommendations/:userId', (req, res) => {
-  const { userId } = req.params;
-
-  if (!userDataStore[userId]) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  // Считаем активные лайки
-  let likeCount = 0;
-  Object.values(userDataStore[userId].recommendations).forEach(data => {
-    data.events.forEach(event => {
-      if (event.trigger === 'like') likeCount++;
-      if (event.trigger === 'unlike') likeCount--;
-    });
-  });
-
-  // Для формирования рекомендаций нужно минимум 5 активных лайков
-  if (likeCount < 5) {
-    return res.status(403).json({
-      error: 'Not enough data for recommendations',
-      likeCount,
-      required: 5
-    });
-  }
-
-  // Формируем и сортируем рекомендации
-  const recommendations = Object.entries(userDataStore[userId].recommendations)
-    .filter(([_, data]) => data.totalWeight > 0)
-    .map(([entityName, data]) => ({
-      entity: entityName,
-      totalWeight: data.totalWeight,
-      events: data.events
-    }))
-    .sort((a, b) => b.totalWeight - a.totalWeight);
-
-  res.json({
-    success: true,
-    recommendations,
-    events: Object.values(userDataStore[userId].recommendations).flatMap(d => d.events)
-  });
+    const { userId } = req.params;
+    
+    if (!userData[userId]) {
+        return res.json({ recommendations: [] });
+    }
+    
+    const userRecs = userData[userId].recommendations || {};
+    
+    // Преобразуем в массив и сортируем по весу
+    const recommendations = Object.entries(userRecs)
+        .filter(([entity, data]) => data.totalWeight > 0)
+        .map(([entity, data]) => ({
+            entity,
+            totalWeight: data.totalWeight,
+            events: data.events
+        }))
+        .sort((a, b) => b.totalWeight - a.totalWeight);
+    
+    res.json({ recommendations });
 });
 
-// API для получения всех событий пользователя
-app.get('/api/events/:userId', (req, res) => {
-  const { userId } = req.params;
-
-  if (!userDataStore[userId]) {
-    return res.json({ success: true, events: [] });
-  }
-
-  const allEvents = Object.values(userDataStore[userId].recommendations)
-    .flatMap(data => data.events.map(e => ({ ...e, entity: '' })));
-
-  res.json({ success: true, events: allEvents });
+// Отправить событие (универсальный эндпоинт)
+// Ожидает: { userId, trigger, entity, weight }
+app.post('/api/events', (req, res) => {
+    const { userId, trigger, entity, weight } = req.body;
+    
+    if (!userId || !trigger || !entity || weight === undefined) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Необходимы поля: userId, trigger, entity, weight' 
+        });
+    }
+    
+    // Инициализируем пользователя если нет
+    if (!userData[userId]) {
+        userData[userId] = { likes: [], recommendations: {} };
+    }
+    
+    const user = userData[userId];
+    
+    // Инициализируем рекомендацию для этой сущности если нет
+    if (!user.recommendations[entity]) {
+        user.recommendations[entity] = {
+            totalWeight: 0,
+            events: []
+        };
+    }
+    
+    const rec = user.recommendations[entity];
+    
+    // Проверка на дубликат read_more (только один раз на карточку)
+    if (trigger === 'read_more') {
+        const alreadyExpanded = rec.events.some(ev => 
+            ev.trigger === 'read_more' && ev.entityId === req.body.entityId
+        );
+        if (alreadyExpanded) {
+            return res.json({ 
+                success: true, 
+                message: 'Событие уже учтено',
+                recommendations: Object.entries(user.recommendations)
+                    .filter(([e, d]) => d.totalWeight > 0)
+                    .map(([e, d]) => ({ entity: e, totalWeight: d.totalWeight, events: d.events }))
+                    .sort((a, b) => b.totalWeight - a.totalWeight)
+            });
+        }
+    }
+    
+    // Добавляем событие
+    const eventRecord = {
+        trigger,
+        weight,
+        timestamp: Date.now()
+    };
+    
+    // Для read_more сохраняем entityId чтобы не дублировать
+    if (trigger === 'read_more' && req.body.entityId) {
+        eventRecord.entityId = req.body.entityId;
+    }
+    
+    rec.events.push(eventRecord);
+    
+    // Обновляем общий вес
+    rec.totalWeight += weight;
+    
+    // Если это лайк, обновляем список лайков
+    if (trigger === 'like') {
+        if (weight > 0) {
+            // Добавляем лайк (если еще нет)
+            // В реальном приложении нужен cardId, здесь используем entity как упрощение
+            if (!user.likes.includes(entity)) {
+                user.likes.push(entity);
+            }
+        } else {
+            // Снимаем лайк
+            user.likes = user.likes.filter(l => l !== entity);
+        }
+    }
+    
+    console.log(`[REC] User ${userId}: ${trigger} on ${entity}, weight: ${weight}, total: ${rec.totalWeight}`);
+    
+    // Возвращаем обновленные рекомендации
+    const recommendations = Object.entries(user.recommendations)
+        .filter(([e, d]) => d.totalWeight > 0)
+        .map(([e, d]) => ({ entity: e, totalWeight: d.totalWeight, events: d.events }))
+        .sort((a, b) => b.totalWeight - a.totalWeight);
+    
+    res.json({ 
+        success: true, 
+        recommendations,
+        likeCount: user.likes.length
+    });
 });
 
 app.listen(PORT, () => {
-  console.log(`Recommendation Module running on port ${PORT}`);
+    console.log(`Recommendation Module running on port ${PORT}`);
 });

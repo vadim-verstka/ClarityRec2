@@ -1,75 +1,68 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 
 const app = express();
 const PORT = 3002;
 
-// Разрешаем CORS для всех источников
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-app.use(bodyParser.json());
+app.use(cors());
+app.use(express.json());
 
-// Хранилище объяснений
-const explanationsStore = {};
-
-// API для генерации объяснений на основе рекомендаций
-// Ожидается: { userId, recommendations: [{ entity, totalWeight, events: [{ trigger, weight }] }] }
-app.post('/api/generate-explanation', (req, res) => {
-  const { userId, recommendations } = req.body;
-
-  console.log('Генерация объяснений для пользователя:', userId);
-  console.log('Рекомендации:', recommendations);
-
-  if (!userId || !recommendations) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-
-  // Генерируем объяснения для каждой рекомендации
-  const explanation = {
-    userId,
-    generatedAt: new Date().toISOString(),
-    summary: `Сформировано ${recommendations.length} рекомендаций на основе ваших предпочтений`,
-    items: recommendations.map(rec => {
-      // Собираем информацию о триггерах из событий
-      const triggersSet = new Set();
-      rec.events.forEach(event => {
-        triggersSet.add(event.trigger);
-      });
-      const triggersDescription = Array.from(triggersSet).join(', ') || 'неизвестно';
-
-      return {
-        category: rec.entity,
-        weight: rec.totalWeight,
-        trigger: triggersDescription,
-        explanation: `Категория "${rec.entity}" рекомендована с весом ${rec.totalWeight}, потому что вы проявили интерес через события: ${triggersDescription}`
-      };
-    })
-  };
-
-  explanationsStore[userId] = explanation;
-  console.log('Объяснение сгенерировано:', explanation);
-
-  res.json({ success: true, explanation });
-});
-
-// API для получения объяснений пользователя
-app.get('/api/explanation/:userId', (req, res) => {
-  const { userId } = req.params;
-
-  if (!explanationsStore[userId]) {
-    return res.status(404).json({
-      error: 'Explanation not found',
-      message: 'Нет данных для формирования объяснений'
+// Генерация объяснений на основе рекомендаций
+app.post('/api/explain', (req, res) => {
+    const { userId, recommendations } = req.body;
+    
+    if (!recommendations || !Array.isArray(recommendations)) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Необходим массив recommendations' 
+        });
+    }
+    
+    // Генерируем объяснения для каждой рекомендации
+    const items = recommendations.map(rec => {
+        // Группируем события по триггерам
+        const triggerCounts = {};
+        rec.events.forEach(ev => {
+            if (!triggerCounts[ev.trigger]) {
+                triggerCounts[ev.trigger] = { count: 0, totalWeight: 0 };
+            }
+            triggerCounts[ev.trigger].count++;
+            triggerCounts[ev.trigger].totalWeight += ev.weight;
+        });
+        
+        // Формируем список событий для отображения
+        const events = Object.entries(triggerCounts).map(([trigger, data]) => ({
+            trigger,
+            count: data.count,
+            weight: data.totalWeight
+        }));
+        
+        return {
+            category: rec.entity,
+            totalWeight: rec.totalWeight,
+            events: events
+        };
     });
-  }
-
-  res.json({ success: true, explanation: explanationsStore[userId] });
+    
+    // Генерируем краткое резюме
+    let summary = '';
+    if (items.length === 0) {
+        summary = 'Пока нет достаточных данных для формирования рекомендаций.';
+    } else {
+        const topCategory = items[0].category;
+        const topWeight = items[0].totalWeight;
+        summary = `На основе вашей активности сформировано ${items.length} рекомендаций. Наиболее предпочтительная категория: "${topCategory}" (вес: ${topWeight}).`;
+    }
+    
+    res.json({
+        success: true,
+        explanation: {
+            summary,
+            items
+        }
+    });
 });
 
 app.listen(PORT, () => {
-  console.log(`Explanation Module running on port ${PORT}`);
+    console.log(`Explanation Module running on port ${PORT}`);
 });
