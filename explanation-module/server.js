@@ -5,7 +5,12 @@ const bodyParser = require('body-parser');
 const app = express();
 const PORT = 3002;
 
-app.use(cors());
+// Разрешаем CORS для всех источников
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(bodyParser.json());
 
 // Хранилище объяснений
@@ -15,11 +20,14 @@ const explanationsStore = {};
 // Ожидается: { userId, recommendations: [{ entity, totalWeight, events: [{ trigger, weight }] }] }
 app.post('/api/generate-explanation', (req, res) => {
   const { userId, recommendations } = req.body;
-  
+
+  console.log('Генерация объяснений для пользователя:', userId);
+  console.log('Рекомендации:', recommendations);
+
   if (!userId || !recommendations) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  
+
   // Генерируем объяснения для каждой рекомендации
   const explanation = {
     userId,
@@ -32,7 +40,7 @@ app.post('/api/generate-explanation', (req, res) => {
         triggersSet.add(event.trigger);
       });
       const triggersDescription = Array.from(triggersSet).join(', ') || 'неизвестно';
-      
+
       return {
         category: rec.entity,
         weight: rec.totalWeight,
@@ -41,23 +49,24 @@ app.post('/api/generate-explanation', (req, res) => {
       };
     })
   };
-  
+
   explanationsStore[userId] = explanation;
-  
+  console.log('Объяснение сгенерировано:', explanation);
+
   res.json({ success: true, explanation });
 });
 
 // API для получения объяснений пользователя
 app.get('/api/explanation/:userId', (req, res) => {
   const { userId } = req.params;
-  
+
   if (!explanationsStore[userId]) {
-    return res.status(404).json({ 
+    return res.status(404).json({
       error: 'Explanation not found',
       message: 'Нет данных для формирования объяснений'
     });
   }
-  
+
   res.json({ success: true, explanation: explanationsStore[userId] });
 });
 
