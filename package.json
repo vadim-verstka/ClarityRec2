@@ -1,18 +1,15 @@
 {
   "name": "clarityrec-system",
   "version": "1.0.0",
-  "description": "Интегрируемая интеллектуальная система рекомендаций с модулем визуализации объяснений",
-  "main": "start-all.js",
+  "description": "Integrated intelligent recommendation system with independent adaptive explanation module",
   "scripts": {
-    "start": "node start-all.js",
+    "start": "concurrently \"npm run rec-module\" \"npm run exp-module\" \"npm run web-app\"",
+    "rec-module": "cd recommendation-module && node server.js",
+    "exp-module": "cd explanation-module && node server.js",
+    "web-app": "cd web-app && node server.js",
     "install-all": "npm install && cd recommendation-module && npm install && cd ../explanation-module && npm install && cd ../web-app && npm install"
   },
-  "keywords": [
-    "recommendation-system",
-    "vuejs",
-    "nodejs",
-    "explainable-ai"
-  ],
-  "author": "",
-  "license": "MIT"
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
 }
