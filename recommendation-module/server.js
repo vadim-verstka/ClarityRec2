@@ -97,6 +97,8 @@ app.get('/api/user-data/:userId', (req, res) => {
   const events = userEvents[userId] || [];
   const recommendations = userRecommendations[userId] || [];
   
+  // Allow access from any origin for integration
+  res.header('Access-Control-Allow-Origin', '*');
   res.json({ events, recommendations });
 });
 
