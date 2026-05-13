@@ -75,8 +75,10 @@ app.post('/api/login', (req, res) => {
   if (login === 'admin' && password === 'cradmin123') {
     currentUser = { role: 'admin', username: 'admin' };
     const token = 'admin-token-' + Date.now();
+    console.log('Login successful for admin');
     res.json({ success: true, user: currentUser, token: token });
   } else {
+    console.log('Login failed for:', login);
     res.status(401).json({ error: 'Неверный логин или пароль' });
   }
 });
@@ -141,7 +143,9 @@ app.post('/api/users', (req, res) => {
   const token = 'user-token-' + userId + '-' + Date.now();
   currentUser = { role: 'user', userId, username: name, tempAdmin: { role: 'admin', username: 'admin' } };
   
-  res.json({ success: true, user: users[userId], token: token });
+  console.log('User created:', userId);
+  // Возвращаем пользователя с явным userId
+  res.json({ success: true, user: { ...users[userId], userId: userId }, token: token });
 });
 
 // API для переключения на пользователя
@@ -157,9 +161,11 @@ app.post('/api/users/:userId/switch', (req, res) => {
   }
   
   const token = 'user-token-' + userId + '-' + Date.now();
+  // Явно устанавливаем userId в объекте currentUser
   currentUser = { role: 'user', userId: userId, username: users[userId].name, tempAdmin: { role: 'admin', username: 'admin' } };
   
-  res.json({ success: true, user: users[userId], token: token });
+  console.log('Switched to user:', userId, 'currentUser:', currentUser);
+  res.json({ success: true, user: { ...users[userId], userId: userId }, token: token });
 });
 
 // API для получения карточек пользователя
