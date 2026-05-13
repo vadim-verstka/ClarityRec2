@@ -377,6 +377,10 @@
         🎯 Вам показаны рекомендованные карточки на основе ваших предпочтений!
       </div>
       
+      <div v-if="feedMessage" style="background: #fef3c7; padding: 15px; border-radius: 10px; margin-bottom: 20px; color: #92400e;">
+        {{ feedMessage }}
+      </div>
+      
       <div class="cards-grid">
         <div v-for="card in cards" :key="card.id" class="card">
           <img :src="card.image" :alt="card.title">
@@ -450,7 +454,8 @@
           isRecommended: false,
           hasExplanation: false,
           explanation: null,
-          notification: null
+          notification: null,
+          feedMessage: null
         };
       },
       
@@ -599,15 +604,32 @@
               this.cards = data.cards;
               this.isRecommended = data.isRecommended;
               this.likesCount = data.likesCount;
+              this.feedMessage = data.message || null;
               this.currentPage = 'feed';
               
-              // Загружаем лайкнутые карточки (упрощенно - все карточки с лайками)
-              // В реальном приложении нужно отдельное API для этого
+              // Загружаем список лайкнутых карточек для корректного отображения кнопок
+              await this.loadLikedCards();
             } else {
               this.showNotification(data.error || 'Ошибка загрузки ленты');
             }
           } catch (e) {
             this.showNotification('Ошибка соединения с сервером');
+          }
+        },
+        
+        async loadLikedCards() {
+          // Получаем текущие данные пользователя через API cards и сохраняем likedCards
+          // В данной реализации likedCards хранятся на сервере, но нам нужно их получить
+          // Для простоты - делаем запрос к отдельному эндпоинту или храним локально
+          // Добавим эндпоинт для получения состояния пользователя
+          try {
+            const response = await fetch('/api/user-state');
+            const data = await response.json();
+            if (response.ok && data.likedCards) {
+              this.likedCards = data.likedCards;
+            }
+          } catch (e) {
+            console.error('Ошибка загрузки лайков:', e);
           }
         },
         
@@ -629,7 +651,8 @@
                 this.likesCount = data.likesCount;
                 this.showNotification('Лайк снят');
                 
-                // Перезагружаем ленту для обновления рекомендаций
+                // Обновляем состояние лайков и перезагружаем ленту
+                await this.loadLikedCards();
                 await this.loadFeed();
               } else {
                 // Ставим лайк
@@ -638,6 +661,7 @@
                 
                 if (data.hasRecommendations) {
                   this.showNotification('🎉 Рекомендации сформированы!');
+                  await this.loadLikedCards();
                   await this.loadFeed();
                 } else {
                   this.showNotification(`Лайк поставлен! (${this.likesCount}/5)`);
