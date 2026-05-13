@@ -460,7 +460,14 @@
       },
       
       mounted() {
-        this.checkAuth();
+        // Проверяем авторизацию только если есть токен в localStorage
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          this.checkAuth();
+        } else {
+          // Если токена нет, просто остаемся на странице логина
+          this.currentPage = 'login';
+        }
       },
       
       methods: {
@@ -472,19 +479,34 @@
         },
         
         async checkAuth() {
+          const token = localStorage.getItem('authToken');
+          if (!token) {
+            this.currentPage = 'login';
+            return;
+          }
+          
           try {
-            const response = await fetch('/api/current-user');
+            const response = await fetch('/api/current-user', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
             if (response.ok) {
               const data = await response.json();
               this.currentUser = data.user;
               if (this.currentUser.role === 'admin') {
                 this.loadUsers();
+                this.currentPage = 'admin';
               } else {
                 this.loadFeed();
+                this.currentPage = 'feed';
               }
+            } else {
+              localStorage.removeItem('authToken');
+              this.currentPage = 'login';
             }
           } catch (e) {
             console.log('Not authenticated');
+            localStorage.removeItem('authToken');
+            this.currentPage = 'login';
           }
         },
         
@@ -500,6 +522,10 @@
             
             if (response.ok) {
               this.currentUser = data.user;
+              // Сохраняем токен в localStorage
+              if (data.token) {
+                localStorage.setItem('authToken', data.token);
+              }
               this.showNotification('Успешная авторизация!');
               
               if (this.currentUser.role === 'admin') {
@@ -507,6 +533,7 @@
                 setTimeout(() => this.loadUsers(), 100);
               } else {
                 this.loadFeed();
+                this.currentPage = 'feed';
               }
             } else {
               this.showNotification(data.error || 'Ошибка авторизации');
@@ -521,6 +548,7 @@
             await fetch('/api/logout', { method: 'POST' });
           } catch (e) {}
           
+          localStorage.removeItem('authToken');
           this.currentUser = null;
           this.currentPage = 'login';
           this.users = [];
@@ -559,8 +587,13 @@
             
             if (response.ok) {
               this.currentUser = data.user;
+              // Сохраняем токен
+              if (data.token) {
+                localStorage.setItem('authToken', data.token);
+              }
               this.newUserName = '';
               this.loadFeed();
+              this.currentPage = 'feed';
               this.showNotification('Пользователь создан!');
             } else {
               this.showNotification(data.error || 'Ошибка создания пользователя');
@@ -580,7 +613,12 @@
             
             if (response.ok) {
               this.currentUser = data.user;
+              // Сохраняем токен
+              if (data.token) {
+                localStorage.setItem('authToken', data.token);
+              }
               this.loadFeed();
+              this.currentPage = 'feed';
               this.showNotification(`Переключено на пользователя: ${data.user.name}`);
             } else {
               this.showNotification(data.error || 'Ошибка переключения');

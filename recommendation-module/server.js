@@ -87,12 +87,15 @@ app.get('/api/recommendations/:userId', (req, res) => {
     return res.status(404).json({ error: 'User not found' });
   }
   
-  const likesCount = userDataStore[userId].events.filter(e => e.eventType === 'like').length;
+  // Считаем активные лайки (like - unlike)
+  const totalLikes = userDataStore[userId].events.filter(e => e.eventType === 'like').length;
+  const totalUnlikes = userDataStore[userId].events.filter(e => e.eventType === 'unlike').length;
+  const activeLikes = totalLikes - totalUnlikes;
   
-  if (likesCount < 5) {
+  if (activeLikes < 5) {
     return res.status(403).json({ 
       error: 'Not enough data for recommendations',
-      likesCount,
+      likesCount: activeLikes,
       required: 5
     });
   }
