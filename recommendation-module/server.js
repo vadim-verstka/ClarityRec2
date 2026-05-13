@@ -67,9 +67,14 @@ app.post('/api/events', (req, res) => {
   
   userDataStore[userId].recommendations = recommendations;
   
+  // Считаем общее количество активных лайков (like - unlike)
+  const totalLikes = userDataStore[userId].events.filter(e => e.eventType === 'like').length;
+  const totalUnlikes = userDataStore[userId].events.filter(e => e.eventType === 'unlike').length;
+  const activeLikes = totalLikes - totalUnlikes;
+  
   res.json({ 
     success: true, 
-    totalLikes: userDataStore[userId].events.filter(e => e.eventType === 'like').length,
+    totalLikes: activeLikes,
     recommendations 
   });
 });

@@ -155,12 +155,16 @@ app.get('/api/cards', (req, res) => {
   
   const user = users[currentUser.userId];
   const likesCount = user.likedCards ? user.likedCards.length : 0;
+  const likedCardIds = user.likedCards || [];
   
   if (likesCount >= 5 && user.recommendations) {
-    // Возвращаем рекомендованные карточки
+    // Возвращаем рекомендованные карточки, исключая уже лайкнутые
     const recommendedCategories = user.recommendations.map(r => r.category);
+    
+    // Фильтруем карточки: только рекомендованные категории и не лайкнутые
     let recommendedCards = allCards.filter(card => 
-      recommendedCategories.includes(card.category)
+      recommendedCategories.includes(card.category) && 
+      !likedCardIds.includes(card.id)
     );
     
     // Сортируем по весу рекомендаций
@@ -173,10 +177,11 @@ app.get('/api/cards', (req, res) => {
       return (categoryWeights[b.category] || 0) - (categoryWeights[a.category] || 0);
     });
     
-    // Если недостаточно рекомендованных, дополняем случайными
+    // Если недостаточно рекомендованных, дополняем случайными (не лайкнутыми)
     if (recommendedCards.length < 10) {
       const otherCards = allCards.filter(card => 
-        !recommendedCategories.includes(card.category)
+        !recommendedCategories.includes(card.category) &&
+        !likedCardIds.includes(card.id)
       );
       while (recommendedCards.length < 10 && otherCards.length > 0) {
         const randomCard = otherCards.splice(Math.floor(Math.random() * otherCards.length), 1)[0];
@@ -184,21 +189,46 @@ app.get('/api/cards', (req, res) => {
       }
     }
     
-    res.json({ 
-      success: true, 
-      cards: recommendedCards.slice(0, 10),
-      isRecommended: true,
-      likesCount
-    });
+    // Если все карточки лайкнуты, возвращаем пустой массив с сообщением
+    if (recommendedCards.length === 0) {
+      res.json({ 
+        success: true, 
+        cards: [],
+        isRecommended: true,
+        likesCount,
+        message: 'Все рекомендованные карточки уже лайкнуты!'
+      });
+    } else {
+      res.json({ 
+        success: true, 
+        cards: recommendedCards.slice(0, 10),
+        isRecommended: true,
+        likesCount
+      });
+    }
   } else {
-    // Возвращаем случайные карточки
-    const shuffled = [...allCards].sort(() => Math.random() - 0.5);
-    res.json({ 
-      success: true, 
-      cards: shuffled.slice(0, 10),
-      isRecommended: false,
-      likesCount
-    });
+    // Возвращаем случайные карточки, исключая уже лайкнутые
+    const availableCards = allCards.filter(card => 
+      !likedCardIds.includes(card.id)
+    );
+    
+    if (availableCards.length === 0) {
+      res.json({ 
+        success: true, 
+        cards: [],
+        isRecommended: false,
+        likesCount,
+        message: 'Все карточки уже лайкнуты!'
+      });
+    } else {
+      const shuffled = availableCards.sort(() => Math.random() - 0.5);
+      res.json({ 
+        success: true, 
+        cards: shuffled.slice(0, 10),
+        isRecommended: false,
+        likesCount
+      });
+    }
   }
 });
 
@@ -366,6 +396,22 @@ app.get('/api/explanation', (req, res) => {
     success: true, 
     hasExplanation: true,
     explanation: user.explanation
+  });
+});
+
+// API для получения состояния пользователя (лайкнутые карточки)
+app.get('/api/user-state', (req, res) => {
+  if (!currentUser || currentUser.role !== 'user') {
+    return res.status(403).json({ error: 'Доступ запрещен' });
+  }
+  
+  const user = users[currentUser.userId];
+  
+  res.json({ 
+    success: true, 
+    likedCards: user.likedCards || [],
+    likesCount: user.likedCards ? user.likedCards.length : 0,
+    hasRecommendations: user.recommendations !== null
   });
 });
 
