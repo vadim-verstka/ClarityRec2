@@ -182,10 +182,17 @@
       color: #718096;
       margin-bottom: 10px;
       font-size: 14px;
+      line-height: 1.5;
       display: -webkit-box;
       -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
       overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .card-description.expanded {
+      -webkit-line-clamp: unset;
+      overflow: visible;
     }
     
     .read-more-btn {
@@ -196,6 +203,10 @@
       font-size: 13px;
       padding: 5px 0;
       transition: all 0.3s;
+      display: block;
+      width: 100%;
+      text-align: left;
+      margin-top: 5px;
     }
     
     .read-more-btn:hover {
@@ -406,13 +417,15 @@
           <div class="card-body">
             <span class="card-category">{{ card.category }}</span>
             <div class="card-title">{{ card.title }}</div>
-            <div class="card-description">{{ getShortDescription(card.description) }}</div>
+            <div :class="['card-description', { expanded: expandedCards.includes(card.id) }]">
+              {{ card.description }}
+            </div>
             <button 
-              v-if="card.description.length > 100"
+              v-if="needsReadMore(card.id)"
               class="read-more-btn"
               @click="toggleReadMore(card.id)"
             >
-              {{ expandedCards.includes(card.id) ? 'Свернуть' : 'Читать далее' }}
+              {{ expandedCards.includes(card.id) ? '▲ Свернуть' : '▼ Читать далее' }}
             </button>
             <button 
               :class="['btn-like', { liked: likedCards.includes(card.id) }]"
@@ -498,11 +511,16 @@
       },
       
       methods: {
-        getShortDescription(description) {
-          if (this.expandedCards.includes(this.cards.find(c => c.description === description)?.id)) {
-            return description;
-          }
-          return description.length > 100 ? description.substring(0, 100) + '...' : description;
+        needsReadMore(cardId) {
+          const card = this.cards.find(c => c.id === cardId);
+          if (!card) return false;
+          
+          // Проверяем, превышает ли текст 3 строки
+          // Используем приблизительный расчет: средняя строка ~50 символов при данном шрифте
+          // Точное определение через DOM было бы идеальным, но для простоты используем длину текста
+          const avgCharsPerLine = 45; // среднее количество символов в строке для данного дизайна
+          const lines = Math.ceil(card.description.length / avgCharsPerLine);
+          return lines > 3;
         },
         
         toggleReadMore(cardId) {
@@ -524,7 +542,9 @@
                   itemId: cardId.toString(),
                   itemCategory: card.category
                 })
-              }).catch(e => console.error('Ошибка отправки события read_more:', e));
+              }).then(() => {
+                console.log('Событие read_more отправлено');
+              }).catch(e => console.log('Событие read_more:', e.message));
             }
           }
         },
@@ -822,7 +842,8 @@
                     }
                   }
                 } catch (e) {
-                  console.error('Ошибка обновления объяснений:', e);
+                  // Игнорируем ошибки обновления объяснений - показываем базовые
+                  console.log('Объяснения загружены в базовом режиме');
                 }
               }
             } else {
