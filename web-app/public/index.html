@@ -254,7 +254,7 @@
     </div>
     
     <!-- Панель администратора -->
-    <div v-else-if="currentUser && currentUser.role === 'admin'" class="container">
+    <div v-else-if="currentPage === 'admin'" class="container">
       <div class="header">
         <h1>ClarityRec - Админ панель</h1>
         <div style="display: flex; gap: 10px; align-items: center;">
@@ -288,13 +288,13 @@
     </div>
     
     <!-- Лента пользователя -->
-    <div v-else-if="currentUser && currentUser.role === 'user'" class="container">
+    <div v-else-if="currentPage === 'feed'" class="container">
       <div class="header">
         <h1>ClarityRec - Лента</h1>
         <div style="display: flex; gap: 10px; align-items: center;">
           <span class="likes-counter">Лайков: {{ likesCount }}</span>
           <button class="btn btn-primary" @click="goToProfile">Личный кабинет</button>
-          <button class="btn btn-primary" v-if="isAdmin" @click="backToAdmin">Админ панель</button>
+          <button class="btn btn-primary" v-if="currentUser && currentUser.tempAdmin" @click="backToAdmin">Админ панель</button>
           <button class="btn btn-danger" @click="handleLogout">Выход</button>
         </div>
       </div>
@@ -377,8 +377,7 @@
           isRecommended: false,
           hasExplanation: false,
           explanation: null,
-          notification: null,
-          isAdmin: false
+          notification: null
         };
       },
       
@@ -426,7 +425,10 @@
               this.showNotification('Успешная авторизация!');
               
               if (this.currentUser.role === 'admin') {
+                this.currentPage = 'admin';
                 setTimeout(() => this.loadUsers(), 100);
+              } else {
+                this.loadFeed();
               }
             } else {
               this.showNotification(data.error || 'Ошибка авторизации');
@@ -447,7 +449,6 @@
           this.cards = [];
           this.likedCards = [];
           this.likesCount = 0;
-          this.isAdmin = false;
           this.loginForm = { login: '', password: '' };
         },
         
@@ -479,8 +480,7 @@
             const data = await response.json();
             
             if (response.ok) {
-              this.currentUser = { role: 'user', userId: data.user.id, username: data.user.name };
-              this.isAdmin = true;
+              this.currentUser = data.user;
               this.newUserName = '';
               this.loadFeed();
               this.showNotification('Пользователь создан!');
@@ -501,8 +501,7 @@
             const data = await response.json();
             
             if (response.ok) {
-              this.currentUser = { role: 'user', userId: data.user.id, username: data.user.name };
-              this.isAdmin = true;
+              this.currentUser = data.user;
               this.loadFeed();
               this.showNotification(`Переключено на пользователя: ${data.user.name}`);
             } else {
@@ -514,8 +513,7 @@
         },
         
         backToAdmin() {
-          this.currentUser = { role: 'admin', username: 'admin' };
-          this.isAdmin = false;
+          this.currentPage = 'admin';
           this.loadUsers();
         },
         
