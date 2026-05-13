@@ -495,7 +495,8 @@
           explanation: null,
           notification: null,
           feedMessage: null,
-          expandedCards: []
+          expandedCards: [],
+          readMoreSent: []
         };
       },
       
@@ -530,21 +531,29 @@
           } else {
             this.expandedCards.push(cardId);
             
-            // Отправляем событие read_more в модуль рекомендаций
+            // Отправляем событие read_more в модуль рекомендаций только один раз
             const card = this.cards.find(c => c.id === cardId);
             if (card && this.currentUser && this.currentUser.userId) {
-              fetch('http://localhost:3001/api/events', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  userId: this.currentUser.userId,
-                  eventType: 'read_more',
-                  itemId: cardId.toString(),
-                  itemCategory: card.category
-                })
-              }).then(() => {
-                console.log('Событие read_more отправлено');
-              }).catch(e => console.log('Событие read_more:', e.message));
+              // Проверяем, было ли уже отправлено событие для этой карточки
+              const alreadySent = this.readMoreSent.includes(cardId);
+              
+              if (!alreadySent) {
+                // Помечаем как отправленное
+                this.readMoreSent.push(cardId);
+                
+                fetch('http://localhost:3001/api/events', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: this.currentUser.userId,
+                    trigger: 'read_more',
+                    entity: card.category,
+                    weight: 0.5
+                  })
+                }).then(() => {
+                  console.log('Событие read_more отправлено');
+                }).catch(e => console.log('Событие read_more:', e.message));
+              }
             }
           }
         },
@@ -765,18 +774,42 @@
             
             if (response.ok) {
               if (isLiked) {
-                // Снимаем лайк
+                // Снимаем лайк - отправляем событие с весом -1
                 this.likedCards = this.likedCards.filter(id => id !== card.id);
                 this.likesCount = data.likesCount;
                 this.showNotification('Лайк снят');
+                
+                // Отправляем событие unlike в модуль рекомендаций
+                fetch('http://localhost:3001/api/events', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: this.currentUser.userId,
+                    trigger: 'unlike',
+                    entity: card.category,
+                    weight: -1
+                  })
+                }).catch(e => console.log('Событие unlike:', e.message));
                 
                 // Обновляем состояние лайков и перезагружаем ленту
                 await this.loadLikedCards();
                 await this.loadFeed();
               } else {
-                // Ставим лайк
+                // Ставим лайк - отправляем событие с весом +1
                 this.likedCards.push(card.id);
                 this.likesCount = data.likesCount;
+                
+                // Отправляем событие like в модуль рекомендаций
+                fetch('http://localhost:3001/api/events', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: this.currentUser.userId,
+                    trigger: 'like',
+                    entity: card.category,
+                    weight: 1
+                  })
+                }).catch(e => console.log('Событие like:', e.message));
                 
                 if (data.hasRecommendations) {
                   this.showNotification('🎉 Рекомендации сформированы!');
