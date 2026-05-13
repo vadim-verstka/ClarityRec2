@@ -20,7 +20,7 @@ app.get('/api/user-data/:userId', (req, res) => {
   res.json({ success: true, userId });
 });
 
-// API для отправки событий (лайков)
+// API для отправки событий (любых триггеров)
 app.post('/api/events', (req, res) => {
   const { userId, eventType, itemId, itemCategory } = req.body;
   
@@ -32,7 +32,7 @@ app.post('/api/events', (req, res) => {
     userDataStore[userId] = { events: [], recommendations: null };
   }
   
-  // Записываем событие
+  // Записываем событие (любой тип триггера)
   userDataStore[userId].events.push({
     eventType,
     itemId,
@@ -40,34 +40,44 @@ app.post('/api/events', (req, res) => {
     timestamp: new Date().toISOString()
   });
   
-  // Подсчитываем лайки по категориям (учитываем unlike)
+  // Подсчитываем веса по категориям для всех типов событий
   const categoryCounts = {};
   userDataStore[userId].events.forEach(event => {
     if (event.itemCategory) {
+      // Разные типы событий могут иметь разный вес
+      let weightChange = 0;
+      
       if (event.eventType === 'like') {
-        categoryCounts[event.itemCategory] = (categoryCounts[event.itemCategory] || 0) + 1;
+        weightChange = 1;
       } else if (event.eventType === 'unlike') {
-        categoryCounts[event.itemCategory] = (categoryCounts[event.itemCategory] || 0) - 1;
-        // Не допускаем отрицательных значений
-        if (categoryCounts[event.itemCategory] <= 0) {
-          delete categoryCounts[event.itemCategory];
-        }
+        weightChange = -1;
+      } else if (event.eventType === 'read_more') {
+        // Раскрытие текста тоже считается как интерес, но с меньшим весом
+        weightChange = 0.5;
+      }
+      // Можно легко добавить другие типы событий здесь
+      
+      categoryCounts[event.itemCategory] = (categoryCounts[event.itemCategory] || 0) + weightChange;
+      
+      // Не допускаем отрицательных значений
+      if (categoryCounts[event.itemCategory] <= 0) {
+        delete categoryCounts[event.itemCategory];
       }
     }
   });
   
-  // Формируем рекомендации с весами
+  // Формируем рекомендации с весами и типами триггеров
   const recommendations = Object.entries(categoryCounts)
     .map(([category, count]) => ({
       category,
       weight: count,
-      trigger: 'like'
+      trigger: 'multiple' // Общий триггер, детализация в событиях
     }))
     .sort((a, b) => b.weight - a.weight);
   
   userDataStore[userId].recommendations = recommendations;
   
-  // Считаем общее количество активных лайков (like - unlike)
+  // Считаем общее количество активных событий (для порога активации рекомендаций)
   const totalLikes = userDataStore[userId].events.filter(e => e.eventType === 'like').length;
   const totalUnlikes = userDataStore[userId].events.filter(e => e.eventType === 'unlike').length;
   const activeLikes = totalLikes - totalUnlikes;
@@ -92,6 +102,7 @@ app.get('/api/recommendations/:userId', (req, res) => {
   const totalUnlikes = userDataStore[userId].events.filter(e => e.eventType === 'unlike').length;
   const activeLikes = totalLikes - totalUnlikes;
   
+  // Для формирования рекомендаций нужно минимум 5 активных лайков
   if (activeLikes < 5) {
     return res.status(403).json({ 
       error: 'Not enough data for recommendations',
@@ -100,10 +111,23 @@ app.get('/api/recommendations/:userId', (req, res) => {
     });
   }
   
+  // Возвращаем рекомендации и события для модуля объяснений
   res.json({
     success: true,
-    recommendations: userDataStore[userId].recommendations || []
+    recommendations: userDataStore[userId].recommendations || [],
+    events: userDataStore[userId].events
   });
+});
+
+// API для получения событий пользователя
+app.get('/api/events/:userId', (req, res) => {
+  const { userId } = req.params;
+  
+  if (!userDataStore[userId]) {
+    return res.json({ success: true, events: [] });
+  }
+  
+  res.json({ success: true, events: userDataStore[userId].events });
 });
 
 app.listen(PORT, () => {

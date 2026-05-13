@@ -182,6 +182,25 @@
       color: #718096;
       margin-bottom: 10px;
       font-size: 14px;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    
+    .read-more-btn {
+      background: none;
+      border: none;
+      color: #667eea;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 5px 0;
+      transition: all 0.3s;
+    }
+    
+    .read-more-btn:hover {
+      color: #5568d3;
+      text-decoration: underline;
     }
     
     .card-category {
@@ -387,10 +406,17 @@
           <div class="card-body">
             <span class="card-category">{{ card.category }}</span>
             <div class="card-title">{{ card.title }}</div>
-            <div class="card-description">{{ card.description }}</div>
+            <div class="card-description">{{ getShortDescription(card.description) }}</div>
+            <button 
+              v-if="card.description.length > 100"
+              class="read-more-btn"
+              @click="toggleReadMore(card.id)"
+            >
+              {{ expandedCards.includes(card.id) ? 'Свернуть' : 'Читать далее' }}
+            </button>
             <button 
               :class="['btn-like', { liked: likedCards.includes(card.id) }]"
-              style="width: 100%;"
+              style="width: 100%; margin-top: 10px;"
               @click="handleLike(card)"
             >
               {{ likedCards.includes(card.id) ? '❤️ Лайкнуто' : '👍 Лайк' }}
@@ -455,7 +481,8 @@
           hasExplanation: false,
           explanation: null,
           notification: null,
-          feedMessage: null
+          feedMessage: null,
+          expandedCards: []
         };
       },
       
@@ -471,6 +498,37 @@
       },
       
       methods: {
+        getShortDescription(description) {
+          if (this.expandedCards.includes(this.cards.find(c => c.description === description)?.id)) {
+            return description;
+          }
+          return description.length > 100 ? description.substring(0, 100) + '...' : description;
+        },
+        
+        toggleReadMore(cardId) {
+          const index = this.expandedCards.indexOf(cardId);
+          if (index > -1) {
+            this.expandedCards.splice(index, 1);
+          } else {
+            this.expandedCards.push(cardId);
+            
+            // Отправляем событие read_more в модуль рекомендаций
+            const card = this.cards.find(c => c.id === cardId);
+            if (card && this.currentUser && this.currentUser.userId) {
+              fetch('http://localhost:3001/api/events', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: this.currentUser.userId,
+                  eventType: 'read_more',
+                  itemId: cardId.toString(),
+                  itemCategory: card.category
+                })
+              }).catch(e => console.error('Ошибка отправки события read_more:', e));
+            }
+          }
+        },
+        
         showNotification(message) {
           this.notification = message;
           setTimeout(() => {
@@ -645,6 +703,9 @@
               this.feedMessage = data.message || null;
               this.currentPage = 'feed';
               
+              // Сбрасываем раскрытые карточки при загрузке новой ленты
+              this.expandedCards = [];
+              
               // Загружаем список лайкнутых карточек для корректного отображения кнопок
               await this.loadLikedCards();
             } else {
@@ -720,14 +781,53 @@
         
         async loadExplanation() {
           try {
-            const response = await fetch('/api/explanation');
-            const data = await response.json();
+            const [explanationResponse, eventsResponse] = await Promise.all([
+              fetch('/api/explanation'),
+              fetch('http://localhost:3002/api/events/' + this.currentUser.userId).catch(() => ({ ok: false }))
+            ]);
             
-            if (response.ok) {
-              this.hasExplanation = data.hasExplanation;
-              if (data.hasExplanation) {
-                this.explanation = data.explanation;
+            const explanationData = await explanationResponse.json();
+            let eventsData = { events: [] };
+            
+            if (eventsResponse.ok) {
+              eventsData = await eventsResponse.json();
+            }
+            
+            if (explanationResponse.ok && explanationData.hasExplanation) {
+              this.hasExplanation = true;
+              this.explanation = explanationData.explanation;
+              
+              // Если есть события, обновляем объяснения с детализацией триггеров
+              if (eventsData.events && eventsData.events.length > 0) {
+                // Перегенерируем объяснения с событиями
+                try {
+                  const recResponse = await fetch('http://localhost:3001/api/recommendations/' + this.currentUser.userId);
+                  if (recResponse.ok) {
+                    const recData = await recResponse.json();
+                    if (recData.recommendations) {
+                      const expResponse = await fetch('http://localhost:3002/api/generate-explanation', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          userId: this.currentUser.userId,
+                          recommendations: recData.recommendations,
+                          events: eventsData.events
+                        })
+                      });
+                      
+                      if (expResponse.ok) {
+                        const newExpData = await expResponse.json();
+                        this.explanation = newExpData.explanation;
+                      }
+                    }
+                  }
+                } catch (e) {
+                  console.error('Ошибка обновления объяснений:', e);
+                }
               }
+            } else {
+              this.hasExplanation = false;
+              this.explanation = null;
             }
           } catch (e) {
             console.error('Ошибка загрузки объяснений:', e);
