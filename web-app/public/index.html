@@ -779,15 +779,22 @@
             });
             
             const data = await response.json();
-            
-                
-                if (data.hasRecommendations) {
-                  this.showNotification('🎉 Рекомендации сформированы!');
-                  await this.loadLikedCards();
-                  await this.loadFeed();
-                } else {
-                  this.showNotification(`Лайк поставлен! (${this.likesCount}/5)`);
-                }
+
+            if (response.ok) {
+              if (isLiked) {
+                this.likedCards = this.likedCards.filter(id => id !== card.id);
+                this.likesCount--;
+              } else {
+                this.likedCards.push(card.id);
+                this.likesCount++;
+              }
+
+              if (data.hasRecommendations) {
+                this.showNotification('🎉 Рекомендации сформированы!');
+                await this.loadLikedCards();
+                await this.loadFeed();
+              } else {
+                this.showNotification(isLiked ? 'Лайк снят!' : `Like added! (${this.likesCount}/5)`);
               }
             } else {
               this.showNotification(data.error || 'Ошибка операции');
