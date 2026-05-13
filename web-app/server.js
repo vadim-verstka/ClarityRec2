@@ -70,7 +70,8 @@ app.post('/api/login', (req, res) => {
   
   if (login === 'admin' && password === 'cradmin123') {
     currentUser = { role: 'admin', username: 'admin' };
-    res.json({ success: true, user: currentUser });
+    const token = 'admin-token-' + Date.now();
+    res.json({ success: true, user: currentUser, token: token });
   } else {
     res.status(401).json({ error: 'Неверный логин или пароль' });
   }
@@ -78,10 +79,18 @@ app.post('/api/login', (req, res) => {
 
 // API для получения текущего пользователя
 app.get('/api/current-user', (req, res) => {
-  if (currentUser) {
+  const authHeader = req.headers.authorization;
+  
+  // Если нет заголовка авторизации или currentUser не установлен
+  if (!authHeader || !currentUser) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  // Проверяем токен
+  if (authHeader.startsWith('Bearer ') && currentUser) {
     res.json({ success: true, user: currentUser });
   } else {
-    res.status(401).json({ error: 'Not authenticated' });
+    return res.status(401).json({ error: 'Not authenticated' });
   }
 });
 
@@ -125,9 +134,10 @@ app.post('/api/users', (req, res) => {
     createdAt: new Date().toISOString()
   };
   
+  const token = 'user-token-' + userId + '-' + Date.now();
   currentUser = { role: 'user', userId, username: name, tempAdmin: { role: 'admin', username: 'admin' } };
   
-  res.json({ success: true, user: users[userId] });
+  res.json({ success: true, user: users[userId], token: token });
 });
 
 // API для переключения на пользователя
@@ -142,9 +152,10 @@ app.post('/api/users/:userId/switch', (req, res) => {
     return res.status(404).json({ error: 'Пользователь не найден' });
   }
   
+  const token = 'user-token-' + userId + '-' + Date.now();
   currentUser = { role: 'user', userId, username: users[userId].name };
   
-  res.json({ success: true, user: users[userId] });
+  res.json({ success: true, user: users[userId], token: token });
 });
 
 // API для получения карточек пользователя
