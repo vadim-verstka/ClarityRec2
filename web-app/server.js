@@ -272,6 +272,80 @@ app.post('/api/cards/:cardId/like', async (req, res) => {
   });
 });
 
+// API для снятия лайка
+app.post('/api/cards/:cardId/unlike', async (req, res) => {
+  if (!currentUser || currentUser.role !== 'user') {
+    return res.status(403).json({ error: 'Доступ запрещен' });
+  }
+  
+  const { cardId } = req.params;
+  const user = users[currentUser.userId];
+  const card = allCards.find(c => c.id === parseInt(cardId));
+  
+  if (!card) {
+    return res.status(404).json({ error: 'Карточка не найдена' });
+  }
+  
+  if (!user.likedCards) {
+    user.likedCards = [];
+  }
+  
+  const cardIndex = user.likedCards.indexOf(parseInt(cardId));
+  if (cardIndex > -1) {
+    user.likedCards.splice(cardIndex, 1);
+    
+    try {
+      const recResponse = await fetch('http://localhost:3001/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.userId,
+          eventType: 'unlike',
+          itemId: cardId,
+          itemCategory: card.category
+        })
+      });
+      
+      const recData = await recResponse.json();
+      
+      if (recData.success && recData.recommendations) {
+        user.recommendations = recData.recommendations;
+        
+        if (user.likedCards.length < 5 || !user.recommendations || user.recommendations.length === 0) {
+          user.recommendations = null;
+          user.explanation = null;
+        } else {
+          try {
+            const expResponse = await fetch('http://localhost:3002/api/generate-explanation', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: currentUser.userId,
+                recommendations: user.recommendations
+              })
+            });
+            
+            const expData = await expResponse.json();
+            if (expData.success) {
+              user.explanation = expData.explanation;
+            }
+          } catch (e) {
+            console.error('Ошибка при обновлении объяснения:', e.message);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Ошибка при отправке события unlike:', e.message);
+    }
+  }
+  
+  res.json({ 
+    success: true, 
+    likesCount: user.likedCards.length,
+    hasRecommendations: user.likedCards.length >= 5 && user.recommendations !== null
+  });
+});
+
 // API для получения объяснений
 app.get('/api/explanation', (req, res) => {
   if (!currentUser || currentUser.role !== 'user') {

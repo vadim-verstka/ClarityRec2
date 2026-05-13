@@ -40,11 +40,19 @@ app.post('/api/events', (req, res) => {
     timestamp: new Date().toISOString()
   });
   
-  // Подсчитываем лайки по категориям
+  // Подсчитываем лайки по категориям (учитываем unlike)
   const categoryCounts = {};
   userDataStore[userId].events.forEach(event => {
-    if (event.eventType === 'like' && event.itemCategory) {
-      categoryCounts[event.itemCategory] = (categoryCounts[event.itemCategory] || 0) + 1;
+    if (event.itemCategory) {
+      if (event.eventType === 'like') {
+        categoryCounts[event.itemCategory] = (categoryCounts[event.itemCategory] || 0) + 1;
+      } else if (event.eventType === 'unlike') {
+        categoryCounts[event.itemCategory] = (categoryCounts[event.itemCategory] || 0) - 1;
+        // Не допускаем отрицательных значений
+        if (categoryCounts[event.itemCategory] <= 0) {
+          delete categoryCounts[event.itemCategory];
+        }
+      }
     }
   });
   
