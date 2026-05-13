@@ -780,44 +780,6 @@
             
             const data = await response.json();
             
-            if (response.ok) {
-              if (isLiked) {
-                // Снимаем лайк - отправляем событие с весом -1
-                this.likedCards = this.likedCards.filter(id => id !== card.id);
-                this.likesCount = data.likesCount;
-                this.showNotification('Лайк снят');
-                
-                // Отправляем событие unlike в модуль рекомендаций
-                fetch('http://localhost:3001/api/events', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    userId: this.currentUser.userId,
-                    trigger: 'unlike',
-                    entity: card.category,
-                    weight: -1
-                  })
-                }).catch(e => console.log('Событие unlike:', e.message));
-                
-                // Обновляем состояние лайков и перезагружаем ленту
-                await this.loadLikedCards();
-                await this.loadFeed();
-              } else {
-                // Ставим лайк - отправляем событие с весом +1
-                this.likedCards.push(card.id);
-                this.likesCount = data.likesCount;
-                
-                // Отправляем событие like в модуль рекомендаций
-                fetch('http://localhost:3001/api/events', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    userId: this.currentUser.userId,
-                    trigger: 'like',
-                    entity: card.category,
-                    weight: 1
-                  })
-                }).then(() => { console.log('Событие like успешно отправлено'); }).catch(e => console.error('Ошибка отправки события like:', e));
                 
                 if (data.hasRecommendations) {
                   this.showNotification('🎉 Рекомендации сформированы!');
@@ -842,57 +804,20 @@
         
         async loadExplanation() {
           try {
-            const [explanationResponse, eventsResponse] = await Promise.all([
-              fetch('/api/explanation'),
-              fetch('http://localhost:3002/api/events/' + this.currentUser.userId).catch(() => ({ ok: false }))
-            ]);
-            
+            const explanationResponse = await fetch('/api/explanation');
             const explanationData = await explanationResponse.json();
-            let eventsData = { events: [] };
-            
-            if (eventsResponse.ok) {
-              eventsData = await eventsResponse.json();
-            }
-            
+
             if (explanationResponse.ok && explanationData.hasExplanation) {
               this.hasExplanation = true;
               this.explanation = explanationData.explanation;
-              
-              // Если есть события, обновляем объяснения с детализацией триггеров
-              if (eventsData.events && eventsData.events.length > 0) {
-                // Перегенерируем объяснения с событиями
-                try {
-                  const recResponse = await fetch('http://localhost:3001/api/recommendations/' + this.currentUser.userId);
-                  if (recResponse.ok) {
-                    const recData = await recResponse.json();
-                    if (recData.recommendations) {
-                      const expResponse = await fetch('http://localhost:3002/api/generate-explanation', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          userId: this.currentUser.userId,
-                          recommendations: recData.recommendations,
-                          events: eventsData.events
-                        })
-                      });
-                      
-                      if (expResponse.ok) {
-                        const newExpData = await expResponse.json();
-                        this.explanation = newExpData.explanation;
-                      }
-                    }
-                  }
-                } catch (e) {
-                  // Игнорируем ошибки обновления объяснений - показываем базовые
-                  console.log('Объяснения загружены в базовом режиме');
-                }
-              }
             } else {
               this.hasExplanation = false;
               this.explanation = null;
             }
           } catch (e) {
             console.error('Ошибка загрузки объяснений:', e);
+            this.hasExplanation = false;
+            this.explanation = null;
           }
         }
       }
