@@ -174,7 +174,7 @@ app.get('/api/cards', (req, res) => {
   
   if (likesCount >= 5 && user.recommendations) {
     // Возвращаем рекомендованные карточки, исключая уже лайкнутые
-    const recommendedCategories = user.recommendations.map(r => r.category);
+    const recommendedCategories = user.recommendations.map(r => r.entity);
     
     // Фильтруем карточки: только рекомендованные категории и не лайкнутые
     let recommendedCards = allCards.filter(card => 
@@ -185,7 +185,7 @@ app.get('/api/cards', (req, res) => {
     // Сортируем по весу рекомендаций
     const categoryWeights = {};
     user.recommendations.forEach(r => {
-      categoryWeights[r.category] = r.weight;
+      categoryWeights[r.entity] = r.totalWeight;
     });
     
     recommendedCards.sort((a, b) => {
@@ -268,22 +268,25 @@ app.post('/api/cards/:cardId/like', async (req, res) => {
   if (!user.likedCards.includes(parseInt(cardId))) {
     user.likedCards.push(parseInt(cardId));
     
-    // Отправляем событие в модуль рекомендаций
+    // Отправляем событие в модуль рекомендаций с новым форматом
     try {
       const recResponse = await fetch('http://localhost:3001/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser.userId,
-          eventType: 'like',
-          itemId: cardId,
-          itemCategory: card.category
+          trigger: 'like',
+          entity: card.category,
+          weight: 1
         })
       });
       
       const recData = await recResponse.json();
       
-      if (recData.success && user.likedCards.length >= 5) {
+      // Считаем активные лайки из ответа модуля рекомендаций
+      const activeLikes = recData.likeCount || user.likedCards.length;
+      
+      if (recData.success && activeLikes >= 5) {
         user.recommendations = recData.recommendations;
         
         // Отправляем данные в модуль объяснений
@@ -339,27 +342,34 @@ app.post('/api/cards/:cardId/unlike', async (req, res) => {
   if (cardIndex > -1) {
     user.likedCards.splice(cardIndex, 1);
     
+    // Отправляем событие unlike в модуль рекомендаций с новым форматом
     try {
       const recResponse = await fetch('http://localhost:3001/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser.userId,
-          eventType: 'unlike',
-          itemId: cardId,
-          itemCategory: card.category
+          trigger: 'unlike',
+          entity: card.category,
+          weight: -1
         })
       });
       
       const recData = await recResponse.json();
       
-      if (recData.success && recData.recommendations) {
-        user.recommendations = recData.recommendations;
+      // Считаем активные лайки из ответа модуля рекомендаций
+      const activeLikes = recData.likeCount || user.likedCards.length;
+      
+      // Обновляем рекомендации
+      if (recData.success) {
+        user.recommendations = recData.recommendations && recData.recommendations.length > 0 ? recData.recommendations : null;
         
-        if (user.likedCards.length < 5 || !user.recommendations || user.recommendations.length === 0) {
+        // Если меньше 5 лайков или нет рекомендаций, очищаем
+        if (activeLikes < 5 || !user.recommendations) {
           user.recommendations = null;
           user.explanation = null;
         } else {
+          // Генерируем новые объяснения
           try {
             const expResponse = await fetch('http://localhost:3002/api/generate-explanation', {
               method: 'POST',

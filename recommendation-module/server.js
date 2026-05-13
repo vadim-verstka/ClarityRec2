@@ -8,83 +8,76 @@ const PORT = 3001;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Хранилище данных пользователей и событий
+// Хранилище данных пользователей
+// Структура: { userId: { recommendations: { entity: { totalWeight, events: [] } } } }
 const userDataStore = {};
 
 // API для получения данных пользователя (для проверки прав)
 app.get('/api/user-data/:userId', (req, res) => {
   const { userId } = req.params;
   if (!userDataStore[userId]) {
-    userDataStore[userId] = { events: [], recommendations: null };
+    userDataStore[userId] = { recommendations: {} };
   }
   res.json({ success: true, userId });
 });
 
-// API для отправки событий (любых триггеров)
+// API для отправки событий
+// Ожидается: { userId, trigger, entity, weight }
 app.post('/api/events', (req, res) => {
-  const { userId, eventType, itemId, itemCategory } = req.body;
+  const { userId, trigger, entity, weight } = req.body;
   
-  if (!userId || !eventType || !itemId) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (!userId || !trigger || !entity || weight === undefined) {
+    return res.status(400).json({ error: 'Missing required fields: userId, trigger, entity, weight' });
   }
   
   if (!userDataStore[userId]) {
-    userDataStore[userId] = { events: [], recommendations: null };
+    userDataStore[userId] = { recommendations: {} };
   }
   
-  // Записываем событие (любой тип триггера)
-  userDataStore[userId].events.push({
-    eventType,
-    itemId,
-    itemCategory,
+  // Инициализируем сущность если нет
+  if (!userDataStore[userId].recommendations[entity]) {
+    userDataStore[userId].recommendations[entity] = {
+      totalWeight: 0,
+      events: []
+    };
+  }
+  
+  // Добавляем событие в историю
+  userDataStore[userId].recommendations[entity].events.push({
+    trigger,
+    weight,
     timestamp: new Date().toISOString()
   });
   
-  // Подсчитываем веса по категориям для всех типов событий
-  const categoryCounts = {};
-  userDataStore[userId].events.forEach(event => {
-    if (event.itemCategory) {
-      // Разные типы событий могут иметь разный вес
-      let weightChange = 0;
-      
-      if (event.eventType === 'like') {
-        weightChange = 1;
-      } else if (event.eventType === 'unlike') {
-        weightChange = -1;
-      } else if (event.eventType === 'read_more') {
-        // Раскрытие текста тоже считается как интерес, но с меньшим весом
-        weightChange = 0.5;
-      }
-      // Можно легко добавить другие типы событий здесь
-      
-      categoryCounts[event.itemCategory] = (categoryCounts[event.itemCategory] || 0) + weightChange;
-      
-      // Не допускаем отрицательных значений
-      if (categoryCounts[event.itemCategory] <= 0) {
-        delete categoryCounts[event.itemCategory];
-      }
-    }
-  });
+  // Обновляем суммарный вес
+  userDataStore[userId].recommendations[entity].totalWeight += weight;
   
-  // Формируем рекомендации с весами и типами триггеров
-  const recommendations = Object.entries(categoryCounts)
-    .map(([category, count]) => ({
-      category,
-      weight: count,
-      trigger: 'multiple' // Общий триггер, детализация в событиях
+  // Если вес стал <= 0, удаляем сущность из рекомендаций
+  if (userDataStore[userId].recommendations[entity].totalWeight <= 0) {
+    delete userDataStore[userId].recommendations[entity];
+  }
+  
+  // Формируем отсортированный список рекомендаций
+  const recommendations = Object.entries(userDataStore[userId].recommendations)
+    .map(([entityName, data]) => ({
+      entity: entityName,
+      totalWeight: data.totalWeight,
+      events: data.events
     }))
-    .sort((a, b) => b.weight - a.weight);
+    .sort((a, b) => b.totalWeight - a.totalWeight);
   
-  userDataStore[userId].recommendations = recommendations;
-  
-  // Считаем общее количество активных событий (для порога активации рекомендаций)
-  const totalLikes = userDataStore[userId].events.filter(e => e.eventType === 'like').length;
-  const totalUnlikes = userDataStore[userId].events.filter(e => e.eventType === 'unlike').length;
-  const activeLikes = totalLikes - totalUnlikes;
+  // Считаем количество лайков для порога активации
+  let likeCount = 0;
+  Object.values(userDataStore[userId].recommendations).forEach(data => {
+    data.events.forEach(event => {
+      if (event.trigger === 'like') likeCount++;
+      if (event.trigger === 'unlike') likeCount--;
+    });
+  });
   
   res.json({ 
     success: true, 
-    totalLikes: activeLikes,
+    likeCount,
     recommendations 
   });
 });
@@ -97,29 +90,42 @@ app.get('/api/recommendations/:userId', (req, res) => {
     return res.status(404).json({ error: 'User not found' });
   }
   
-  // Считаем активные лайки (like - unlike)
-  const totalLikes = userDataStore[userId].events.filter(e => e.eventType === 'like').length;
-  const totalUnlikes = userDataStore[userId].events.filter(e => e.eventType === 'unlike').length;
-  const activeLikes = totalLikes - totalUnlikes;
+  // Считаем активные лайки
+  let likeCount = 0;
+  Object.values(userDataStore[userId].recommendations).forEach(data => {
+    data.events.forEach(event => {
+      if (event.trigger === 'like') likeCount++;
+      if (event.trigger === 'unlike') likeCount--;
+    });
+  });
   
   // Для формирования рекомендаций нужно минимум 5 активных лайков
-  if (activeLikes < 5) {
+  if (likeCount < 5) {
     return res.status(403).json({ 
       error: 'Not enough data for recommendations',
-      likesCount: activeLikes,
+      likeCount,
       required: 5
     });
   }
   
-  // Возвращаем рекомендации и события для модуля объяснений
+  // Формируем и сортируем рекомендации
+  const recommendations = Object.entries(userDataStore[userId].recommendations)
+    .filter(([_, data]) => data.totalWeight > 0)
+    .map(([entityName, data]) => ({
+      entity: entityName,
+      totalWeight: data.totalWeight,
+      events: data.events
+    }))
+    .sort((a, b) => b.totalWeight - a.totalWeight);
+  
   res.json({
     success: true,
-    recommendations: userDataStore[userId].recommendations || [],
-    events: userDataStore[userId].events
+    recommendations,
+    events: Object.values(userDataStore[userId].recommendations).flatMap(d => d.events)
   });
 });
 
-// API для получения событий пользователя
+// API для получения всех событий пользователя
 app.get('/api/events/:userId', (req, res) => {
   const { userId } = req.params;
   
@@ -127,7 +133,10 @@ app.get('/api/events/:userId', (req, res) => {
     return res.json({ success: true, events: [] });
   }
   
-  res.json({ success: true, events: userDataStore[userId].events });
+  const allEvents = Object.values(userDataStore[userId].recommendations)
+    .flatMap(data => data.events.map(e => ({ ...e, entity: '' })));
+  
+  res.json({ success: true, events: allEvents });
 });
 
 app.listen(PORT, () => {
